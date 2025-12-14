@@ -2,8 +2,7 @@ package com.investmenttracker.server.wallets;
 
 import com.investmenttracker.server.wallets.dto.WalletAmountRequest;
 import com.investmenttracker.server.wallets.dto.WalletDto;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
+import com.investmenttracker.server.common.AuthUtil;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -20,19 +19,12 @@ public class WalletService {
         this.walletRepository = walletRepository;
     }
 
-    private UUID requireUserId() {
-        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        if (auth == null || auth.getName() == null || auth.getName().isBlank()) {
-            throw new IllegalStateException("UNAUTHORIZED");
-        }
-        return UUID.fromString(auth.getName()); // JwtAuthFilter name=userId set ediyor
-    }
-
     @Transactional
     public Wallet ensureWallet(UUID userId) {
         return walletRepository.findByUserId(userId)
                 .orElseGet(() -> {
                     Wallet w = new Wallet();
+                    w.setId(UUID.randomUUID()); // ✅ ID manual ver (persist hatasını kesin çözer)
                     w.setUserId(userId);
                     w.setBalance(BigDecimal.ZERO.setScale(4, RoundingMode.HALF_UP));
                     return walletRepository.save(w);
@@ -41,12 +33,13 @@ public class WalletService {
 
     @Transactional
     public Wallet ensureMyWallet() {
-        return ensureWallet(requireUserId());
+        UUID userId = AuthUtil.requireUserId();
+        return ensureWallet(userId);
     }
 
     @Transactional(readOnly = true)
     public WalletDto getMyWallet() {
-        UUID userId = requireUserId();
+        UUID userId = AuthUtil.requireUserId();
         Wallet w = walletRepository.findByUserId(userId)
                 .orElseThrow(() -> new IllegalStateException("WALLET_NOT_FOUND"));
 

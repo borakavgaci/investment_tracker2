@@ -7,23 +7,31 @@ import java.time.Instant;
 import java.util.UUID;
 
 @Entity
-@Table(name = "wallets")
+@Table(
+        name = "wallets",
+        uniqueConstraints = @UniqueConstraint(name = "uk_wallets_user_id", columnNames = {"user_id"})
+)
 public class Wallet {
 
     @Id
-    @Column(name = "id", nullable = false)
+    @Column(nullable = false)
     private UUID id;
 
     @Column(name = "user_id", nullable = false)
     private UUID userId;
 
-    @Column(name = "balance", nullable = false, precision = 18, scale = 4)
-    private BigDecimal balance = BigDecimal.ZERO;
+    @Column(name = "balance", precision = 18, scale = 4, nullable = false)
+    private BigDecimal balance;
 
-    @Column(name = "created_at")
+    @Column(name = "created_at", nullable = false)
     private Instant createdAt;
 
-    public Wallet() {}
+    @PrePersist
+    void prePersist() {
+        if (id == null) id = UUID.randomUUID();
+        if (createdAt == null) createdAt = Instant.now();
+        if (balance == null) balance = BigDecimal.ZERO;
+    }
 
     public UUID getId() { return id; }
     public void setId(UUID id) { this.id = id; }
