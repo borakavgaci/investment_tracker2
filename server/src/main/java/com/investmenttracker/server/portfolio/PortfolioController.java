@@ -1,12 +1,7 @@
 package com.investmenttracker.server.portfolio;
 
-import com.investmenttracker.server.auth.AuthUser;
-import com.investmenttracker.server.portfolio.dto.PortfolioResponseDto;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
-
-import java.util.UUID;
+import com.investmenttracker.server.portfolio.dto.PortfolioDto;
+import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/api/portfolio")
@@ -19,8 +14,7 @@ public class PortfolioController {
     }
 
     @GetMapping("/me")
-    public PortfolioResponseDto me() {
-        UUID userId = AuthUser.requireUserId();
-        return portfolioService.getMyPortfolio(userId);
+    public PortfolioDto me() {
+        return portfolioService.getMyPortfolio();
     }
 }

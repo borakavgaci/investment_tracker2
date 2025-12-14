@@ -24,9 +24,9 @@ public class HoldingId implements Serializable {
     }
 
     public UUID getUserId() { return userId; }
-    public UUID getStockId() { return stockId; }
-
     public void setUserId(UUID userId) { this.userId = userId; }
+
+    public UUID getStockId() { return stockId; }
     public void setStockId(UUID stockId) { this.stockId = stockId; }
 
     @Override

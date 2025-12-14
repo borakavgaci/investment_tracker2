@@ -54,7 +54,6 @@ export default function StockDetailPage() {
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-
   const [data, setData] = useState<StockDetailResponseDto | null>(null);
 
   const [portfolioLoading, setPortfolioLoading] = useState(false);
@@ -88,11 +87,12 @@ export default function StockDetailPage() {
   async function fetchPortfolio() {
     if (!symbol) return;
     setPortfolioLoading(true);
+
     try {
       const p = await getMyPortfolio();
       setBalance(Number(p.balance ?? 0));
 
-      const h = p.holdings.find((x: any) => x.symbol?.toUpperCase() === symbol.toUpperCase());
+      const h = (p.holdings || []).find((x: any) => x.symbol?.toUpperCase() === symbol.toUpperCase());
       if (h) {
         setOwnedQty(Number(h.quantity ?? 0));
         setAvgCost(Number(h.avgCost ?? 0));
@@ -101,7 +101,7 @@ export default function StockDetailPage() {
         setAvgCost(0);
       }
     } catch {
-      // portfolio hata verirse trade UI’ı yine de gösterelim
+      // ignore
     } finally {
       setPortfolioLoading(false);
     }
@@ -128,6 +128,12 @@ export default function StockDetailPage() {
     return (currentPrice - avgCost) * ownedQty;
   }, [ownedQty, avgCost, currentPrice]);
 
+  const canSell = useMemo(() => {
+    if (ownedQty <= 0) return false;
+    if (qtyNum <= 0) return false;
+    return qtyNum <= ownedQty;
+  }, [ownedQty, qtyNum]);
+
   async function onBuy() {
     if (!symbol) return;
     setError("");
@@ -135,7 +141,6 @@ export default function StockDetailPage() {
 
     try {
       await createTrade({ symbol, type: "BUY", quantity: qtyNum });
-      await fetchDetail();
       await fetchPortfolio();
     } catch (e: any) {
       setError(e?.response?.data?.message || e?.response?.data?.error || e?.message || "BUY failed");
@@ -146,10 +151,10 @@ export default function StockDetailPage() {
     if (!symbol) return;
     setError("");
     if (qtyNum <= 0) return setError("Quantity must be > 0");
+    if (qtyNum > ownedQty) return setError("Quantity exceeds owned amount");
 
     try {
       await createTrade({ symbol, type: "SELL", quantity: qtyNum });
-      await fetchDetail();
       await fetchPortfolio();
     } catch (e: any) {
       setError(e?.response?.data?.message || e?.response?.data?.error || e?.message || "SELL failed");
@@ -203,7 +208,7 @@ export default function StockDetailPage() {
               Buy
             </button>
 
-            <button onClick={onSell} disabled={ownedQty <= 0} style={{ padding: "8px 12px" }}>
+            <button onClick={onSell} disabled={!canSell} style={{ padding: "8px 12px" }}>
               Sell
             </button>
           </div>
@@ -248,9 +253,7 @@ export default function StockDetailPage() {
               k="Website"
               v={
                 data.website ? (
-                  <a href={data.website} target="_blank" rel="noreferrer">
-                    {data.website}
-                  </a>
+                  <a href={data.website} target="_blank" rel="noreferrer">{data.website}</a>
                 ) : (
                   "-"
                 )
