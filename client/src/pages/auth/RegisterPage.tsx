@@ -25,13 +25,25 @@ export default function RegisterPage() {
     setLoading(true);
 
     try {
-      await registerUser(form);
+      // Normalize (backend tarafında lower-case yapıyorsun ama burada da temiz olsun)
+      const payload = {
+        ...form,
+        email: form.email.trim().toLowerCase(),
+      };
+
+      await registerUser(payload);
       navigate("/auth/login"); // kayıt başarılı → login
     } catch (err: any) {
-      if (err?.response?.status === 409) {
+      const status = err?.response?.status;
+      const data = err?.response?.data;
+
+      // Backend'ten gelen message/code varsa onu öncelikle göster
+      if (status === 409) {
         setError("Bu e-posta zaten kayıtlı.");
+      } else if (status === 400) {
+        setError(data?.message || "Geçersiz kayıt bilgisi.");
       } else {
-        setError("Kayıt sırasında hata oluştu.");
+        setError(data?.message || "Kayıt sırasında hata oluştu.");
       }
     } finally {
       setLoading(false);

@@ -21,16 +21,34 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      const data = await loginUser({
-        email: form.email,
+      const payload = {
+        email: form.email.trim().toLowerCase(),
         password: form.password,
-      });
+      };
 
-      setToken(data.token);     // localStorage + isAuthenticated=true
+      const data = await loginUser(payload);
+
+      // Bazı backend'ler "token" yerine farklı alan döndürebilir.
+      // Biz güvenli şekilde ikisini de destekleyelim:
+      const token = data.token;
+
+
+      if (!token) {
+        setError("Giriş başarılı görünüyor ama token alınamadı.");
+        return;
+      }
+
+      setToken(token); // localStorage + isAuthenticated=true
       navigate("/main");
     } catch (err: any) {
-      if (err?.response?.status === 401) setError("Email veya şifre hatalı.");
-      else setError("Giriş sırasında hata oluştu.");
+      const status = err?.response?.status;
+      const data = err?.response?.data;
+
+      if (status === 401) {
+        setError("Email veya şifre hatalı.");
+      } else {
+        setError(data?.message || "Giriş sırasında hata oluştu.");
+      }
     } finally {
       setLoading(false);
     }

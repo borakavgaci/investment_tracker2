@@ -10,6 +10,12 @@ export const http = axios.create({
 });
 
 http.interceptors.request.use((config) => {
+  // ✅ auth endpointlerine Authorization header ekleme
+  const url = config.url ?? "";
+  if (url.startsWith("/api/auth")) {
+    return config;
+  }
+
   const token = localStorage.getItem(STORAGE_KEY);
   if (token) {
     config.headers = config.headers ?? {};

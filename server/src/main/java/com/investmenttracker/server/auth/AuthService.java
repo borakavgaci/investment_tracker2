@@ -1,32 +1,34 @@
 package com.investmenttracker.server.auth;
 
+import com.investmenttracker.server.auth.dto.LoginRequest;
 import com.investmenttracker.server.auth.dto.RegisterRequest;
 import com.investmenttracker.server.user.User;
 import com.investmenttracker.server.user.UserRepository;
-import com.investmenttracker.server.wallet.Wallet;
-import com.investmenttracker.server.wallet.WalletRepository;
+import com.investmenttracker.server.wallets.WalletService;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
-import com.investmenttracker.server.auth.dto.LoginRequest;
-import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 
 @Service
 public class AuthService {
 
     private final UserRepository userRepository;
-    private final WalletRepository walletRepository;
-    private final BCryptPasswordEncoder encoder = new BCryptPasswordEncoder(10);
-
+    private final WalletService walletService;
     private final JwtService jwtService;
 
-    public AuthService(UserRepository userRepository, WalletRepository walletRepository, JwtService jwtService) {
+    private final BCryptPasswordEncoder encoder = new BCryptPasswordEncoder(10);
+
+    public AuthService(
+            UserRepository userRepository,
+            WalletService walletService,
+            JwtService jwtService
+    ) {
         this.userRepository = userRepository;
-        this.walletRepository = walletRepository;
+        this.walletService = walletService;
         this.jwtService = jwtService;
     }
 
+    @Transactional
     public String login(LoginRequest req) {
         String email = req.email.trim().toLowerCase();
 
@@ -36,6 +38,9 @@ public class AuthService {
         if (!encoder.matches(req.password, u.getPasswordHash())) {
             throw new IllegalArgumentException("INVALID_CREDENTIALS");
         }
+
+        // Login'de de wallet'ı garanti et (wallet tablosu/record'ı eksik kalmış kullanıcıları otomatik düzeltir)
+        walletService.ensureWallet(u.getId());
 
         return jwtService.generateToken(u.getId(), u.getEmail());
     }
@@ -57,9 +62,8 @@ public class AuthService {
 
         User saved = userRepository.save(u);
 
-        Wallet w = new Wallet();
-        w.setUserId(saved.getId());
-        walletRepository.save(w);
+        // Register sonrası wallet kesin oluştur
+        walletService.ensureWallet(saved.getId());
 
         return saved;
     }

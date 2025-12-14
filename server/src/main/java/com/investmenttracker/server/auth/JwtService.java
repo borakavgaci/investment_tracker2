@@ -1,13 +1,13 @@
 package com.investmenttracker.server.auth;
 
-import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.Claims;
+import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
+import javax.crypto.SecretKey;
 import java.nio.charset.StandardCharsets;
-import java.security.Key;
 import java.time.Instant;
 import java.util.Date;
 import java.util.UUID;
@@ -15,44 +15,59 @@ import java.util.UUID;
 @Service
 public class JwtService {
 
-  private final Key key;
-  private final int expMinutes;
+    private final SecretKey key;
+    private final int expMinutes;
 
-  public JwtService(
-      @Value("${app.jwt.secret}") String secret,
-      @Value("${app.jwt.expMinutes}") int expMinutes
-  ) {
-    this.key = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
-    this.expMinutes = expMinutes;
-  }
+    public JwtService(
+            @Value("${app.jwt.secret}") String secret,
+            @Value("${app.jwt.expMinutes:120}") int expMinutes
+    ) {
+        this.key = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
+        this.expMinutes = expMinutes;
+    }
 
-  public String generateToken(UUID userId, String email) {
-    Instant now = Instant.now();
-    Instant exp = now.plusSeconds((long) expMinutes * 60);
+    public String generateToken(UUID userId, String email) {
+        Instant now = Instant.now();
+        Instant exp = now.plusSeconds(expMinutes * 60L);
 
-    return Jwts.builder()
-        .subject(userId.toString())
-        .claim("email", email)
-        .issuedAt(Date.from(now))
-        .expiration(Date.from(exp))
-        .signWith(key)
-        .compact();
-  }
+        return Jwts.builder()
+                // KRİTİK: subject = userId (UUID)
+                .subject(userId.toString())
+                .claim("email", email)
+                .issuedAt(Date.from(now))
+                .expiration(Date.from(exp))
+                .signWith(key)
+                .compact();
+    }
 
-  public Claims parseClaims(String token) {
-    return Jwts.parser()
-        .verifyWith((javax.crypto.SecretKey) key)
-        .build()
-        .parseSignedClaims(token)
-        .getPayload();
-  }
+    public Claims parseClaims(String token) {
+        return Jwts.parser()
+                .verifyWith(key)
+                .build()
+                .parseSignedClaims(token)
+                .getPayload();
+    }
 
-  public UUID getUserId(String token) {
-    return UUID.fromString(parseClaims(token).getSubject());
-  }
+    /** JwtAuthFilter'ın beklediği metod */
+    public UUID extractUserId(String token) {
+        Claims claims = parseClaims(token);
+        String sub = claims.getSubject();
+        return UUID.fromString(sub);
+    }
 
-  public String getEmail(String token) {
-    Object v = parseClaims(token).get("email");
-    return v == null ? null : v.toString();
-  }
+    public String extractEmail(String token) {
+        Claims claims = parseClaims(token);
+        Object email = claims.get("email");
+        return email == null ? null : String.valueOf(email);
+    }
+
+    public boolean isTokenValid(String token) {
+        try {
+            Claims claims = parseClaims(token);
+            Date exp = claims.getExpiration();
+            return exp == null || exp.after(new Date());
+        } catch (Exception e) {
+            return false;
+        }
+    }
 }

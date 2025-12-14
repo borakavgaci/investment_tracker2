@@ -1,22 +1,22 @@
 import { http } from "../../services/http";
-import type { WalletResponse, WalletTxResponse } from "./wallet.types";
 
-export async function depositFixed(): Promise<WalletResponse> {
-  const res = await http.post<WalletResponse>("/api/wallet/deposit");
+export type WalletDto = {
+  id: string;
+  userId: string;
+  balance: number | string;
+};
+
+export async function getMyWallet(): Promise<WalletDto> {
+  const res = await http.get<WalletDto>("/api/wallet/me");
   return res.data;
 }
 
-export async function withdrawFixed(): Promise<WalletResponse> {
-  const res = await http.post<WalletResponse>("/api/wallet/withdraw");
+export async function deposit(amount: number): Promise<WalletDto> {
+  const res = await http.post<WalletDto>("/api/wallet/deposit", { amount });
   return res.data;
 }
 
-export async function getMyWallet(): Promise<WalletResponse> {
-  const res = await http.get<WalletResponse>("/api/wallet/me");
-  return res.data;
-}
-
-export async function getRecentTransactions(): Promise<WalletTxResponse[]> {
-  const res = await http.get<WalletTxResponse[]>("/api/wallet/transactions");
+export async function withdraw(amount: number): Promise<WalletDto> {
+  const res = await http.post<WalletDto>("/api/wallet/withdraw", { amount });
   return res.data;
 }

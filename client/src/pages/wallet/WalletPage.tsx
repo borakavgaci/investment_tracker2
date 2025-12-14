@@ -1,124 +1,86 @@
 import { useEffect, useState } from "react";
+import api from "../../api/client";
 
-import {
-  getMyWallet,
-  depositFixed,
-  withdrawFixed,
-  getRecentTransactions,
-} from "../../features/wallet/wallet.api";
+type WalletDto = {
+  id: string;
+  userId: string;
+  balance: number | string;
+};
 
-import type { WalletResponse, WalletTxResponse } from "../../features/wallet/wallet.types";
-
-function formatTs(input: string) {
-  const dt = new Date(input);
-  if (Number.isNaN(dt.getTime())) return input; // fallback
-  return dt.toLocaleString("tr-TR", {
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-  });
+function extractErrMsg(e: any) {
+  const status = e?.response?.status;
+  const data = e?.response?.data;
+  if (status && data) {
+    if (typeof data === "string") return `HTTP ${status} - ${data}`;
+    if (typeof data?.message === "string") return data.message;
+    if (typeof data?.error === "string") return data.error;
+  }
+  return e?.message || "ERROR";
 }
 
 export default function WalletPage() {
-  const [wallet, setWallet] = useState<WalletResponse | null>(null);
-  const [txs, setTxs] = useState<WalletTxResponse[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [wallet, setWallet] = useState<WalletDto | null>(null);
+  const [amount, setAmount] = useState<string>("100");
+  const [msg, setMsg] = useState<string>("");
 
-  async function refresh() {
-    const [w, t] = await Promise.all([getMyWallet(), getRecentTransactions()]);
-    setWallet(w);
-    setTxs(t);
-  }
+  const load = async () => {
+    setMsg("");
+    const res = await api.get("/api/wallet/me");
+    setWallet(res.data);
+  };
 
   useEffect(() => {
-    refresh();
+    load().catch((e) => setMsg(extractErrMsg(e)));
   }, []);
 
-  async function onDeposit() {
-    setLoading(true);
-    setError(null);
+  const deposit = async () => {
     try {
-      await depositFixed();
-      await refresh();
-    } catch {
-      setError("Deposit failed");
-    } finally {
-      setLoading(false);
-    }
-  }
+      setMsg("");
+      const n = Number(amount);
+      if (!Number.isFinite(n) || n <= 0) return setMsg("Amount must be > 0");
 
-  async function onWithdraw() {
-    setLoading(true);
-    setError(null);
-    try {
-      await withdrawFixed();
-      await refresh();
-    } catch {
-      setError("Insufficient balance");
-    } finally {
-      setLoading(false);
+      const res = await api.post("/api/wallet/deposit", { amount: n });
+      setWallet(res.data);
+      setMsg("Deposit success");
+    } catch (e: any) {
+      setMsg(extractErrMsg(e));
     }
-  }
+  };
+
+  const withdraw = async () => {
+    try {
+      setMsg("");
+      const n = Number(amount);
+      if (!Number.isFinite(n) || n <= 0) return setMsg("Amount must be > 0");
+
+      const res = await api.post("/api/wallet/withdraw", { amount: n });
+      setWallet(res.data);
+      setMsg("Withdraw success");
+    } catch (e: any) {
+      setMsg(extractErrMsg(e));
+    }
+  };
+
+  if (!wallet) return <div style={{ padding: 16 }}>{msg || "Loading..."}</div>;
 
   return (
-    <div className="space-y-6">
-      {/* WALLET CARD */}
-      <div className="rounded-2xl border border-slate-800 bg-slate-950 p-5">
-        <div className="text-sm text-slate-400">Free Balance</div>
-        <div className="mt-2 text-3xl font-semibold text-white">
-          {wallet ? wallet.freeBalance : "—"}
-        </div>
+    <div style={{ padding: 16 }}>
+      <h2>Wallet</h2>
+      <div>Balance: {wallet.balance}</div>
 
-        {/* ✅ DEPOSIT / WITHDRAW */}
-        <div className="mt-5 flex gap-3">
-          <button
-            onClick={onDeposit}
-            disabled={loading}
-            className="rounded-xl bg-emerald-500 px-4 py-2 text-sm font-medium text-black hover:bg-emerald-400 disabled:opacity-60"
-          >
-            Deposit +500
-          </button>
-
-          <button
-            onClick={onWithdraw}
-            disabled={loading}
-            className="rounded-xl border border-slate-700 px-4 py-2 text-sm font-medium text-white hover:bg-slate-900 disabled:opacity-60"
-          >
-            Withdraw -500
-          </button>
-        </div>
-
-        {error && <div className="mt-3 text-sm text-red-400">{error}</div>}
+      <div style={{ marginTop: 12 }}>
+        <input
+          value={amount}
+          onChange={(e) => setAmount(e.target.value)}
+          type="number"
+          min={0}
+          step="0.0001"
+        />
+        <button onClick={deposit} style={{ marginLeft: 8 }}>Deposit</button>
+        <button onClick={withdraw} style={{ marginLeft: 8 }}>Withdraw</button>
       </div>
 
-      {/* TRANSACTIONS */}
-      <div className="rounded-2xl border border-slate-800 bg-slate-950 p-5">
-        <div className="mb-3 text-sm font-medium text-white">Recent Transactions</div>
-
-        {txs.length === 0 && <div className="text-sm text-slate-400">No transactions</div>}
-
-        <div className="space-y-2">
-          {txs.map((t) => (
-            <div
-              key={t.id}
-              className="flex items-center justify-between rounded-xl border border-slate-800 px-3 py-2"
-            >
-              <div className="flex flex-col">
-                <span className="text-sm text-slate-300">{t.type}</span>
-                <span className="text-xs text-slate-500">
-                  {formatTs(t.transactionDate)}
-                </span>
-              </div>
-
-              <span className="text-sm text-white">{t.amount}</span>
-            </div>
-          ))}
-        </div>
-      </div>
+      {msg && <div style={{ marginTop: 12 }}>{msg}</div>}
     </div>
   );
 }

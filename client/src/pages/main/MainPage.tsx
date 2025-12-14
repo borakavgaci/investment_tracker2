@@ -1,61 +1,106 @@
-import PageHeader from "../../components/common/PageHeader";
+import { useEffect, useState } from "react";
+import { getStocksByCountry } from "../../features/stocks/stocks.api";
+import type { Stock } from "../../features/stocks/stocks.types";
+import { Link } from "react-router-dom";
+
+const COUNTRIES = [
+  { code: "US", name: "United States" },
+  { code: "DE", name: "Germany" },
+  { code: "GB", name: "United Kingdom" },
+  { code: "CA", name: "Canada" },
+];
 
 export default function MainPage() {
+  const [country, setCountry] = useState("US");
+  const [stocks, setStocks] = useState<Stock[]>([]);
+
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function fetchStocks(c: string) {
+    setLoading(true);
+    setError(null);
+    try {
+      const data = await getStocksByCountry(c, 50);
+      setStocks(data);
+    } catch (err: any) {
+      const status = err?.response?.status;
+      const data = err?.response?.data;
+
+      if (status === 400) {
+        setStocks([]);
+        setError("Bu ülke için veri yok (upstream izin vermiyor veya DB boş).");
+      } else if (status === 401) {
+        setError("Yetkisiz. Lütfen tekrar giriş yap.");
+      } else {
+        setError(data?.message || "Stoklar alınırken hata oluştu.");
+      }
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    fetchStocks(country);
+  }, [country]);
+
   return (
-    <div>
-      <PageHeader
-        title="Main"
-        subtitle="Market overview and quick actions (frontend only for now)."
-        right={
-          <button className="rounded-xl border border-slate-800 bg-slate-950 px-3 py-2 text-sm text-slate-200 hover:bg-slate-900">
-            Refresh
-          </button>
-        }
-      />
+    <div className="space-y-6">
+      <div className="rounded-2xl border border-slate-800 bg-slate-950 p-5">
+        <div className="text-sm text-slate-400">Select Country</div>
 
-      <div className="grid gap-4 md:grid-cols-3">
-        <div className="rounded-2xl border border-slate-900 bg-slate-950/40 p-4">
-          <div className="text-sm text-slate-300">Selected Market</div>
-          <div className="mt-2 text-lg font-semibold">BIST / NASDAQ</div>
-          <div className="mt-1 text-xs text-slate-400">Placeholder</div>
+        <div className="mt-3 flex flex-wrap items-center gap-3">
+          <select
+            value={country}
+            onChange={(e) => setCountry(e.target.value)}
+            className="rounded-xl border border-slate-800 bg-slate-950 px-3 py-2 text-sm text-white outline-none focus:border-slate-600"
+          >
+            {COUNTRIES.map((c) => (
+              <option key={c.code} value={c.code}>
+                {c.name} ({c.code})
+              </option>
+            ))}
+          </select>
+
+          {loading && <span className="text-sm text-slate-400">Loading...</span>}
         </div>
 
-        <div className="rounded-2xl border border-slate-900 bg-slate-950/40 p-4">
-          <div className="text-sm text-slate-300">Watchlist</div>
-          <div className="mt-2 text-lg font-semibold">0 stocks</div>
-          <div className="mt-1 text-xs text-slate-400">Will be filled via API</div>
-        </div>
-
-        <div className="rounded-2xl border border-slate-900 bg-slate-950/40 p-4">
-          <div className="text-sm text-slate-300">Today P/L</div>
-          <div className="mt-2 text-lg font-semibold">₺0.00</div>
-          <div className="mt-1 text-xs text-slate-400">Frontend placeholder</div>
-        </div>
+        {error && <div className="mt-3 text-sm text-red-400">{error}</div>}
       </div>
 
-      <div className="mt-6 rounded-2xl border border-slate-900 bg-slate-950/40 p-4">
-        <div className="mb-3 text-sm font-medium text-slate-200">Stocks (placeholder)</div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm">
-            <thead className="text-slate-400">
-              <tr>
-                <th className="py-2">Symbol</th>
-                <th className="py-2">Company</th>
-                <th className="py-2">Price</th>
-                <th className="py-2">Change</th>
-              </tr>
-            </thead>
-            <tbody className="text-slate-200">
-              {["AAPL", "TSLA", "THYAO"].map((s) => (
-                <tr key={s} className="border-t border-slate-900">
-                  <td className="py-2 font-medium">{s}</td>
-                  <td className="py-2 text-slate-300">Placeholder Inc.</td>
-                  <td className="py-2">0.00</td>
-                  <td className="py-2 text-slate-300">0.00%</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+      <div className="rounded-2xl border border-slate-800 bg-slate-950 p-5">
+        <div className="mb-3 text-sm font-medium text-white">
+          Stocks ({stocks.length})
+        </div>
+
+        {!loading && stocks.length === 0 && !error && (
+          <div className="text-sm text-slate-400">No stocks.</div>
+        )}
+
+        <div className="space-y-2">
+          {stocks.map((s) => (
+            <Link
+              key={s.id}
+              to={`/stocks/${encodeURIComponent(s.symbol)}`}
+              className="block"
+            >
+              <div className="flex items-center justify-between rounded-xl border border-slate-800 px-3 py-2 transition-colors hover:border-slate-600 hover:bg-slate-900/40 cursor-pointer">
+                <div className="min-w-0">
+                  <div className="text-sm font-medium text-white">
+                    {s.symbol}
+                  </div>
+                  <div className="truncate text-xs text-slate-400">
+                    {s.companyName}
+                  </div>
+                </div>
+
+                <div className="text-right">
+                  <div className="text-sm text-white">{s.currentValue}</div>
+                  <div className="text-xs text-slate-500">{s.country}</div>
+                </div>
+              </div>
+            </Link>
+          ))}
         </div>
       </div>
     </div>
